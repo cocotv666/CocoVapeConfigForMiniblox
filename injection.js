@@ -639,107 +639,78 @@ function modifyCode(text) {
 			}
 
 			const killaura = new Module("Killaura", function(callback) {
-    if (callback) {
-        // 创建网格数组以存储所有创建的网格
-        const boxMeshes = [];
+				if (callback) {
+					for(let i = 0; i < 10; i++) {
+						const mesh = new Mesh(new boxGeometryDump(1, 2, 1));
+						mesh.material.depthTest = false;
+						mesh.material.transparent = true;
+						mesh.material.opacity = 0.5;
+						mesh.material.color.set(255, 0, 0);
+						mesh.renderOrder = 6;
+						game$1.gameScene.ambientMeshes.add(mesh);
+						boxMeshes.push(mesh);
+					}
+					tickLoop["Killaura"] = function() {
+						attacked = 0;
+						didSwing = false;
+						const localPos = controls.position.clone();
+						const localTeam = getTeam(player$1);
+						const entities = game$1.world.entitiesDump;
 
-        // 初始化网格
-        for (let i = 0; i < 10; i++) {
-            const mesh = new Mesh(new boxGeometryDump(1, 2, 1));
-            mesh.material.depthTest = false;
-            mesh.material.transparent = true;
-            mesh.material.opacity = 0.5;
-            mesh.renderOrder = 6;
-            game$1.gameScene.ambientMeshes.add(mesh);
-            boxMeshes.push(mesh);
-        }
+						attackList = [];
+						if (!killauraitem[1] || swordCheck()) {
+							for (const entity of entities.values()) {
+								if (entity.id == player$1.id) continue;
+								const newDist = player$1.getDistanceSqToEntity(entity);
+								if (newDist < (killaurarange[1] * killaurarange[1]) && entity instanceof EntityPlayer) {
+									if (entity.mode.isSpectator() || entity.mode.isCreative() || entity.isInvisibleDump()) continue;
+									if (localTeam && localTeam == getTeam(entity)) continue;
+									if (killaurawall[1] && !player$1.canEntityBeSeen(entity)) continue;
+									attackList.push(entity);
+								}
+							}
+						}
 
-        // 用于跟踪时间的变量
-        let time = 0;
+						attackList.sort((a, b) => {
+							return (attackedPlayers[a.id] || 0) > (attackedPlayers[b.id] || 0) ? 1 : -1;
+						});
 
-        // 创建一个函数，用于更新网格的颜色
-        function animate() {
-            time += 0.01; // 增加时间以改变颜色
-            boxMeshes.forEach((mesh, index) => {
-                // 计算彩虹色调（hue），使用sin函数来循环
-                const hue = (time + index * 0.1) % 1; // 根据时间和索引生成不同的颜色
-                const color = new THREE.Color().setHSL(hue, 1, 0.5); // 转换为 HSL 颜色（色调、饱和度、亮度）
-                mesh.material.color.set(color);
-            });
+						for(const entity of attackList) killauraAttack(entity, attackList[0] == entity);
 
-            // 请求下一帧更新
-            requestAnimationFrame(animate);
-        }
+						if (attackList.length > 0) block();
+						else {
+							unblock();
+							sendYaw = false;
+						}
+					};
 
-        // 启动动画循环
-        animate();
-
-        tickLoop["Killaura"] = function() {
-            attacked = 0;
-            didSwing = false;
-            const localPos = controls.position.clone();
-            const localTeam = getTeam(player$1);
-            const entities = game$1.world.entitiesDump;
-
-            attackList = [];
-            if (!killauraitem[1] || swordCheck()) {
-                for (const entity of entities.values()) {
-                    if (entity.id == player$1.id) continue;
-                    const newDist = player$1.getDistanceSqToEntity(entity);
-                    if (newDist < (killaurarange[1] * killaurarange[1]) && entity instanceof EntityPlayer) {
-                        if (entity.mode.isSpectator() || entity.mode.isCreative() || entity.isInvisibleDump()) continue;
-                        if (localTeam && localTeam == getTeam(entity)) continue;
-                        if (killaurawall[1] && !player$1.canEntityBeSeen(entity)) continue;
-                        attackList.push(entity);
-                    }
-                }
-            }
-
-            attackList.sort((a, b) => {
-                return (attackedPlayers[a.id] || 0) > (attackedPlayers[b.id] || 0) ? 1 : -1;
-            });
-
-            for (const entity of attackList) {
-                killauraAttack(entity, attackList[0] == entity);
-            }
-
-            if (attackList.length > 0) {
-                block();
-            } else {
-                unblock();
-                sendYaw = false;
-            }
-        };
-
-        renderTickLoop["Killaura"] = function() {
-            for (let i = 0; i < boxMeshes.length; i++) {
-                const entity = attackList[i];
-                const box = boxMeshes[i];
-                box.visible = entity != undefined && killaurabox[1];
-                if (box.visible) {
-                    const pos = entity.mesh.position;
-                    box.position.copy(new Vector3$1(pos.x, pos.y + 1, pos.z));
-                }
-            }
-        };
-    } else {
-        delete tickLoop["Killaura"];
-        delete renderTickLoop["Killaura"];
-        for (const box of boxMeshes) {
-            box.visible = false;
-        }
-        boxMeshes.splice(boxMeshes.length);
-        sendYaw = false;
-        unblock();
-    }
-});
-
-killaurarange = killaura.addoption("Range", Number, 9);
-killauraangle = killaura.addoption("Angle", Number, 360);
-killaurablock = killaura.addoption("AutoBlock", Boolean, true);
-killaurawall = killaura.addoption("Wallcheck", Boolean, false);
-killaurabox = killaura.addoption("Box", Boolean, true);
-killauraitem = killaura.addoption("LimitToSword", Boolean, false);
+					renderTickLoop["Killaura"] = function() {
+						for(let i = 0; i < boxMeshes.length; i++) {
+							const entity = attackList[i];
+							const box = boxMeshes[i];
+							box.visible = entity != undefined && killaurabox[1];
+							if (box.visible) {
+								const pos = entity.mesh.position;
+								box.position.copy(new Vector3$1(pos.x, pos.y + 1, pos.z));
+							}
+						}
+					};
+				}
+				else {
+					delete tickLoop["Killaura"];
+					delete renderTickLoop["Killaura"];
+					for(const box of boxMeshes) box.visible = false;
+					boxMeshes.splice(boxMeshes.length);
+					sendYaw = false;
+					unblock();
+				}
+			});
+			killaurarange = killaura.addoption("Range", Number, 9);
+			killauraangle = killaura.addoption("Angle", Number, 360);
+			killaurablock = killaura.addoption("AutoBlock", Boolean, true);
+			killaurawall = killaura.addoption("Wallcheck", Boolean, false);
+			killaurabox = killaura.addoption("Box", Boolean, true);
+			killauraitem = killaura.addoption("LimitToSword", Boolean, false);
 
 			new Module("FastBreak", function() {});
 
